@@ -1,0 +1,91 @@
+# ==========================================================================
+# mt5_quant_trading_agent - configuration
+# --------------------------------------------------------------------------
+# SAFETY: This file ships in the SAFEST possible state.
+#   account_mode = demo
+#   live_trading_enabled = false
+# To trade real money you must consciously change BOTH:
+#   account_mode -> live   AND   live_trading_enabled -> true
+# and the preflight check must still pass. Do not do this until the
+# acceptance gate in the research report (Part 9) is fully passed.
+# ==========================================================================
+
+# --- account / connection -------------------------------------------------
+account_mode: demo            # demo | live   (live also needs live_trading_enabled)
+live_trading_enabled: false   # second, independent safety latch for real money
+mt5_login: 0                  # 0 = use the account already logged into the terminal
+mt5_password: ""              # leave blank to use the terminal's existing login
+mt5_server: ""                # leave blank to use the terminal's existing login
+mt5_terminal_path: ""         # optional explicit path to terminal64.exe
+
+# --- instrument -----------------------------------------------------------
+symbol: "EURUSD"
+timeframe: "M15"              # M1 M5 M15 M30 H1 H4 D1
+magic_number: 770524          # unique id so the EA only touches its own trades
+
+# --- session (BROKER/SERVER time, 24h) ------------------------------------
+asia_start: "00:00"           # Asian range build window start
+asia_end:   "07:00"           # Asian range build window end
+session_start: "07:00"        # London window: new trades allowed from here
+session_end:   "11:00"        # ... until here
+hard_flat_time: "20:00"       # all positions force-closed at/after this time
+
+# --- strategy parameters (the only tunables; keep this list short) --------
+strategy:
+  atr_period: 14
+  compression_k: 0.55         # AsiaRange must be <= compression_k * ATR_daily_avg
+  breakout_buffer_atr: 0.10   # entry buffer = this * ATR(14)
+  stop_atr_mult: 1.10         # SL distance = this * ATR(14)  (capped to range)
+  reward_mult: 1.60           # TP = entry +/- reward_mult * SL_distance
+  use_partial_exit: false     # test both; do not assume true is better
+  confirm_closes: 1           # M15 closes beyond level required to trigger
+
+# --- risk management ------------------------------------------------------
+risk_per_trade: 0.005         # 0.5% of equity risked per trade (Stage 0)
+max_trades_per_day: 2         # at most 2 attempts (1 long + 1 short)
+max_losses_per_day: 1         # stop trading after this many losses today
+max_daily_loss: 0.03          # -3% of start-of-day equity -> flat, done for day
+max_weekly_loss: 0.06         # -6% in a week -> stop for the week
+max_losing_days_per_week: 3   # 3 losing days -> stop for the week
+max_drawdown: 0.10            # -10% from initial OR peak -> SHUTDOWN
+max_open_trades: 1
+max_lot: 0.10                 # hard ceiling on lot size regardless of sizing math
+max_spread_pips: 1.2          # reject entry if live spread above this
+max_slippage_pips: 0.5        # max tolerated slippage on fills
+
+# --- recovery framework (Stage 0-4) ---------------------------------------
+recovery_enabled: true
+recovery_stage_thresholds:    # drawdown fraction (worse of from-initial / from-peak)
+  stage1_warning:   0.02
+  stage2_defensive: 0.05
+  stage3_recovery:  0.08
+  stage4_shutdown:  0.10
+recovery_risk_per_stage:      # risk_per_trade override by stage
+  stage0: 0.005
+  stage1: 0.0035
+  stage2: 0.0025
+  stage3: 0.0020
+  stage4: 0.0000              # halted
+
+# --- news filter ----------------------------------------------------------
+news:
+  enabled: true
+  calendar_file: "news_calendar.csv"   # high-impact events you update weekly
+  blackout_minutes_before: 15
+  blackout_minutes_after: 15
+  on_missing_calendar: "halve_risk"    # skip_day | halve_risk
+
+# --- backtest / cost model ------------------------------------------------
+backtest:
+  history_bars: 60000          # bars to pull for backtest/optimisation
+  spread_pips: 0.7             # modelled round-trip cost (spread+commission equiv)
+  slippage_pips: 0.3           # modelled slippage haircut
+  starting_balance: 1000.0
+  in_sample_fraction: 0.70     # 70% IS / 30% OOS
+  walkforward_windows: 6
+  monte_carlo_runs: 5000
+
+# --- engine ---------------------------------------------------------------
+engine:
+  poll_seconds: 15             # main loop poll interval (M15 -> 15s is plenty)
+  initial_capital: 1000.0      # used for drawdown-from-initial; set to your start
